@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>番茄AI — 智能番茄钟</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.timer-container{text-align:center;padding:40px 20px;max-width:400px}
+.timer-ring{position:relative;width:280px;height:280px;margin:0 auto 24px}
+.timer-ring svg{transform:rotate(-90deg)}
+.timer-ring .bg{fill:none;stroke:#21262d;stroke-width:6}
+.timer-ring .progress{fill:none;stroke:#58a6ff;stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .5s;filter:drop-shadow(0 0 8px rgba(88,166,255,0.3))}
+.timer-ring .progress.break{stroke:#3fb950;filter:drop-shadow(0 0 8px rgba(63,185,80,0.3))}
+.timer-display{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+.timer-time{font-size:56px;font-weight:800;letter-spacing:2px;color:#f0f6fc}
+.timer-label{font-size:13px;color:#8b949e;margin-top:6px;text-transform:uppercase;letter-spacing:1px}
+.controls{display:flex;gap:10px;justify-content:center;margin-bottom:20px}
+.btn{padding:10px 24px;border:none;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer;transition:all .2s}
+.btn-primary{background:#58a6ff;color:#fff}
+.btn-primary:hover{opacity:.88;transform:translateY(-1px)}
+.btn-success{background:#3fb950;color:#fff}
+.btn-success:hover{opacity:.88;transform:translateY(-1px)}
+.btn-ghost{background:transparent;border:1px solid #30363d;color:#c9d1d9}
+.btn-ghost:hover{border-color:#58a6ff;color:#58a6ff}
+.modes{display:flex;gap:6px;margin-bottom:24px}
+.mode-btn{padding:6px 14px;border:1px solid #30363d;background:transparent;color:#8b949e;border-radius:8px;cursor:pointer;font-size:12px;transition:all .2s}
+.mode-btn.active{background:rgba(88,166,255,0.1);border-color:#58a6ff;color:#58a6ff}
+.mode-btn.break-mode.active{background:rgba(63,185,80,0.1);border-color:#3fb950;color:#3fb950}
+.stats{display:flex;gap:24px;margin-bottom:20px}
+.stat-item{text-align:center}
+.stat-value{font-size:18px;font-weight:700;color:#58a6ff}
+.stat-label{font-size:11px;color:#8b949e;margin-top:2px}
+.ai-tip{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 18px;margin-top:16px;text-align:left;max-width:340px}
+.ai-tip-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#8b949e;margin-bottom:4px;display:flex;align-items:center;gap:4px}
+.ai-tip-text{font-size:13px;color:#c9d1d9;line-height:1.5}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#161b22;border:1px solid #3fb950;color:#c9d1d9;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;z-index:200}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+@media(max-width:480px){.timer-ring{width:220px;height:220px}.timer-time{font-size:40px}}
+</style>
+</head>
+<body>
+<div class="timer-container">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:32px;font-weight:700;font-size:18px">
+    <span style="background:linear-gradient(135deg,#f85149,#58a6ff);border-radius:7px;padding:4px 8px;font-size:14px;color:#fff">🍅</span>
+    番茄AI
+  </div>
+
+  <div class="modes">
+    <button class="mode-btn active" data-mode="focus" onclick="setMode('focus')">专注 25m</button>
+    <button class="mode-btn" data-mode="short" onclick="setMode('short')">短休 5m</button>
+    <button class="mode-btn" data-mode="long" onclick="setMode('long')">长休 15m</button>
+  </div>
+
+  <div class="timer-ring">
+    <svg width="100%" height="100%" viewBox="0 0 280 280">
+      <circle class="bg" cx="140" cy="140" r="125"/>
+      <circle class="progress" id="progressRing" cx="140" cy="140" r="125" stroke-dasharray="785.4" stroke-dashoffset="0"/>
+    </svg>
+    <div class="timer-display">
+      <div class="timer-time" id="timerDisplay">25:00</div>
+      <div class="timer-label" id="timerLabel">专注时刻</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="startBtn" onclick="toggleTimer()">▶ 开始</button>
+    <button class="btn btn-ghost" onclick="resetTimer()">⟳ 重置</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat-item"><div class="stat-value" id="todayPomodoros">0</div><div class="stat-label">今日🍅</div></div>
+    <div class="stat-item"><div class="stat-value" id="totalPomodoros">0</div><div class="stat-label">总计🍅</div></div>
+  </div>
+
+  <div class="ai-tip" id="aiTip">
+    <div class="ai-tip-label">💡 AI专注建议</div>
+    <div class="ai-tip-text" id="aiTipText">开始第一个番茄钟！专注25分钟，做最重要的一件事。</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TIPS_FOCUS=[
+  '一次只做一件事。多任务处理会降低40%的生产力 🎯',
+  '关闭所有通知，手机调至勿扰模式 📵',
+  '把大任务拆解成25分钟可完成的小块 🧩',
+  '开始前先花1分钟写下本次专注的具体目标 ✍️',
+  '坐姿挺直，保持眼睛与屏幕40cm以上距离 👀',
+  '番茄钟期间不要切换任务，有想法先记下来 📝',
+  '如果不想开始，先做2分钟——你会发现进入状态了 🚀',
+  '每次完成番茄钟都做一次深呼吸，放松肩颈 🌊',
+];
+const TIPS_BREAK=[
+  '站起来走一走，换换心情 🚶',
+  '做几个深呼吸，4秒吸气、6秒呼气 🌬️',
+  '看看窗外，让眼睛休息一下 🏞️',
+  '喝一杯水！保持水分充足 💧',
+  '做一些简单的拉伸动作 🧘',
+  '不要刷手机！让大脑真正放松 📴',
+];
+
+const CIRCUMFERENCE=2*Math.PI*125;
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
+
+let mode='focus';
+let isRunning=false;
+let timeLeft=25*60;
+let total=25*60;
+let interval=null;
+let sessionCount=0;
+
+const MODES={focus:25*60,short:5*60,long:15*60};
+const MODE_LABELS={focus:'专注时刻',short:'短休息',long:'长休息'};
+
+function setMode(m){
+  if(isRunning)return;
+  mode=m;
+  document.querySelectorAll('.mode-btn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.mode===m);
+    b.classList.toggle('break-mode',m!=='focus');
+  });
+  resetTimer();
+  updateTip();
+}
+
+function resetTimer(){
+  isRunning=false;
+  clearInterval(interval);
+  timeLeft=MODES[mode];
+  total=MODES[mode];
+  document.getElementById('startBtn').textContent='▶ 开始';
+  updateDisplay();
+}
+
+function toggleTimer(){
+  if(isRunning){
+    clearInterval(interval);
+    isRunning=false;
+    document.getElementById('startBtn').textContent='▶ 继续';
+  }else{
+    isRunning=true;
+    document.getElementById('startBtn').textContent='⏸ 暂停';
+    interval=setInterval(tick,1000);
+  }
+}
+
+function tick(){
+  timeLeft--;
+  if(timeLeft<=0){
+    clearInterval(interval);
+    isRunning=false;
+    timeLeft=0;
+    updateDisplay();
+    if(mode==='focus'){
+      sessionCount++;
+      const today=parseInt(localStorage.getItem('pomodoro_today')||'0')+1;
+      const total=parseInt(localStorage.getItem('pomodoro_total')||'0')+1;
+      localStorage.setItem('pomodoro_today',today);
+      localStorage.setItem('pomodoro_total',total);
+      updateStats();
+      toast('🎉 番茄完成！该休息一下了');
+      const ring=document.getElementById('progressRing');
+      ring.classList.add('break');
+      document.getElementById('startBtn').textContent='▶ 开始';
+    }else{
+      toast('✅ 休息结束，开始下一个番茄吧！');
+      document.getElementById('startBtn').textContent='▶ 开始';
+      const ring=document.getElementById('progressRing');
+      ring.classList.remove('break');
+    }
+    updateTip();
+    return;
+  }
+  updateDisplay();
+}
+
+function updateDisplay(){
+  const m=Math.floor(timeLeft/60);
+  const s=timeLeft%60;
+  document.getElementById('timerDisplay').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  document.getElementById('timerLabel').textContent=MODE_LABELS[mode];
+  const offset=CIRCUMFERENCE*((total-timeLeft)/total);
+  document.getElementById('progressRing').style.strokeDashoffset=CIRCUMFERENCE-offset;
+}
+
+function updateTip(){
+  const tips=mode==='focus'?TIPS_FOCUS:TIPS_BREAK;
+  const tip=tips[Math.floor(Math.random()*tips.length)];
+  document.getElementById('aiTipText').textContent=tip;
+}
+
+function updateStats(){
+  document.getElementById('todayPomodoros').textContent=localStorage.getItem('pomodoro_today')||'0';
+  document.getElementById('totalPomodoros').textContent=localStorage.getItem('pomodoro_total')||'0';
+}
+
+updateStats();
+updateTip();
+</script>
+</body>
+</html>
